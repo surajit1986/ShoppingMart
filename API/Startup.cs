@@ -1,10 +1,14 @@
+using System.Linq;
+using API.Errors;
 using API.Helpers;
+using API.Middleware;
 using AutoMapper;
 using Core.Interfaces;
 using Infrastructure.Data;
 using Infrastructure.Data.Repositories;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -36,6 +40,19 @@ namespace API
                 x => x.UseSqlite(
                     _configuration.GetConnectionString("DefaultConnection")
                     ));
+            services.Configure<ApiBehaviorOptions>(option => {
+                option.InvalidModelStateResponseFactory = actionContext => {
+                    var errors = actionContext.ModelState.
+                                 Where(e => e.Value.Errors.Count>0)
+                                 .SelectMany(x => x.Value.Errors)
+                                 .Select(x => x.ErrorMessage).ToArray();
+
+                    var errorResponse = new ApiValidationError { Errors = errors};
+
+                    return new BadRequestObjectResult(errorResponse);
+
+                };
+            });
             services.AddSwaggerGen(c =>
             {
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "API", Version = "v1" });
@@ -47,11 +64,12 @@ namespace API
         {
             if (env.IsDevelopment())
             {
-                app.UseDeveloperExceptionPage();
+                //app.UseDeveloperExceptionPage();
                 app.UseSwagger();
                 app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "API v1"));
             }
-
+            app.UseMiddleware<ExceptionMiddleware>();
+            app.UseStatusCodePagesWithReExecute("/errors/{0}");
             app.UseHttpsRedirection();
 
             app.UseRouting();
