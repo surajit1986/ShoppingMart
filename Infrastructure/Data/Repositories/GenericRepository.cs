@@ -41,5 +41,9 @@ namespace Infrastructure.Data.Repositories
 
         }
 
+        public async Task<int> CountAsync(ISpecification<T> spec)
+        {
+            return await ApplySpecification(spec).CountAsync();
+        }
     }
 }
